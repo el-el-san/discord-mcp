@@ -9,6 +9,37 @@ Discord Model Context Protocol (MCP) server that provides tools for interacting 
 - **メッセージ取得**: Discordチャンネルからメッセージを取得
 - **画像取得**: Discordチャンネルから画像を取得
 
+## インストール (Installation)
+
+### npxを使用した簡単インストール（推奨）
+
+```bash
+# パッケージを直接実行（自動インストール）
+npx @el-el-san/discord-mcp
+```
+
+### Claude Codeでの設定
+
+Claude Codeの設定ファイルに以下を追加:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**Linux**: `~/.config/claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "discord": {
+      "command": "npx",
+      "args": ["--yes", "@el-el-san/discord-mcp"],
+      "env": {
+        "DISCORD_BOT_TOKEN": "${DISCORD_BOT_TOKEN}"
+      }
+    }
+  }
+}
+```
+
 ## セットアップ (Setup)
 
 ### 1. Discordボットの作成
@@ -92,12 +123,15 @@ npm run dev
 npm run build
 ```
 
-## Claude Code での使用方法
+## 手動インストール（開発者向け）
 
 ### MCP サーバーの設定
 
-1. プロジェクトをビルド:
+1. プロジェクトをクローン・ビルド:
 ```bash
+git clone https://github.com/el-el-san/discord-mcp.git
+cd discord-mcp
+npm install
 npm run build
 ```
 

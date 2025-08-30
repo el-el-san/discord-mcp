@@ -186,9 +186,7 @@ class DiscordMCPServer {
   }
 
   private async sendMessage(channelId: string, message: string) {
-    if (!this.discordClient.isReady()) {
-      throw new Error('Discord client is not ready');
-    }
+    await this.ensureDiscordReady();
 
     const channel = await this.discordClient.channels.fetch(channelId);
     if (!channel || !channel.isTextBased()) {
@@ -208,9 +206,7 @@ class DiscordMCPServer {
   }
 
   private async sendImage(channelId: string, imagePath: string, message?: string) {
-    if (!this.discordClient.isReady()) {
-      throw new Error('Discord client is not ready');
-    }
+    await this.ensureDiscordReady();
 
     const channel = await this.discordClient.channels.fetch(channelId);
     if (!channel || !channel.isTextBased()) {
@@ -238,9 +234,7 @@ class DiscordMCPServer {
   }
 
   private async getMessages(channelId: string, limit: number) {
-    if (!this.discordClient.isReady()) {
-      throw new Error('Discord client is not ready');
-    }
+    await this.ensureDiscordReady();
 
     const channel = await this.discordClient.channels.fetch(channelId);
     if (!channel || !channel.isTextBased()) {
@@ -271,9 +265,7 @@ class DiscordMCPServer {
   }
 
   private async getImages(channelId: string, limit: number) {
-    if (!this.discordClient.isReady()) {
-      throw new Error('Discord client is not ready');
-    }
+    await this.ensureDiscordReady();
 
     const channel = await this.discordClient.channels.fetch(channelId);
     if (!channel || !channel.isTextBased()) {
@@ -309,7 +301,11 @@ class DiscordMCPServer {
     };
   }
 
-  async start(): Promise<void> {
+  private async ensureDiscordReady(): Promise<void> {
+    if (this.discordClient.isReady()) {
+      return;
+    }
+
     const token = process.env.DISCORD_BOT_TOKEN;
     if (!token) {
       throw new Error('DISCORD_BOT_TOKEN environment variable is required');
@@ -317,7 +313,9 @@ class DiscordMCPServer {
 
     await this.discordClient.login(token);
     console.error('Discord client logged in successfully');
+  }
 
+  async start(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('Discord MCP server started');
