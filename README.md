@@ -31,7 +31,7 @@ Claude Codeの設定ファイルに以下を追加:
   "mcpServers": {
     "discord": {
       "command": "npx",
-      "args": ["--yes", "@el-el-san/discord-mcp"],
+      "args": ["--yes", "@el-el-san/discord-mcp@latest"],
       "env": {
         "DISCORD_BOT_TOKEN": "${DISCORD_BOT_TOKEN}"
       }
