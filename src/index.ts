@@ -7,7 +7,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { Client, GatewayIntentBits, TextChannel, AttachmentBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, TextChannel, AttachmentBuilder, Message, Collection } from 'discord.js';
 import fetch from 'node-fetch';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -134,6 +134,54 @@ class DiscordMCPServer {
               required: ['channel_id'],
             },
           },
+          {
+            name: 'discord_get_messages_advanced',
+            description: 'Advanced message retrieval with date range, keyword search, and pagination',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                channel_id: {
+                  type: 'string',
+                  description: 'Discord channel ID',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Number of messages per page (default: 50, max: 100)',
+                  minimum: 1,
+                  maximum: 100,
+                },
+                before: {
+                  type: 'string',
+                  description: 'Get messages before this message ID (for pagination)',
+                },
+                after: {
+                  type: 'string',
+                  description: 'Get messages after this message ID (for pagination)',
+                },
+                start_date: {
+                  type: 'string',
+                  description: 'Start date in ISO format (e.g., 2024-01-01T00:00:00Z)',
+                },
+                end_date: {
+                  type: 'string',
+                  description: 'End date in ISO format (e.g., 2024-12-31T23:59:59Z)',
+                },
+                keyword: {
+                  type: 'string',
+                  description: 'Keyword to search in message content',
+                },
+                author: {
+                  type: 'string',
+                  description: 'Filter by author username or ID',
+                },
+                has_attachments: {
+                  type: 'boolean',
+                  description: 'Only get messages with attachments',
+                },
+              },
+              required: ['channel_id'],
+            },
+          },
         ],
       };
     });
@@ -168,6 +216,19 @@ class DiscordMCPServer {
               args.channel_id as string,
               args.limit as number || 50
             );
+
+          case 'discord_get_messages_advanced':
+            return await this.getMessagesAdvanced({
+              channelId: args.channel_id as string,
+              limit: args.limit as number || 50,
+              before: args.before as string,
+              after: args.after as string,
+              startDate: args.start_date as string,
+              endDate: args.end_date as string,
+              keyword: args.keyword as string,
+              author: args.author as string,
+              hasAttachments: args.has_attachments as boolean,
+            });
 
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -296,6 +357,149 @@ class DiscordMCPServer {
         {
           type: 'text',
           text: `Retrieved ${imageData.length} images from channel ${channelId}:\n\n${JSON.stringify(imageData, null, 2)}`,
+        },
+      ],
+    };
+  }
+
+  private async getMessagesAdvanced(params: {
+    channelId: string;
+    limit?: number;
+    before?: string;
+    after?: string;
+    startDate?: string;
+    endDate?: string;
+    keyword?: string;
+    author?: string;
+    hasAttachments?: boolean;
+  }) {
+    await this.ensureDiscordReady();
+
+    const channel = await this.discordClient.channels.fetch(params.channelId);
+    if (!channel || !channel.isTextBased()) {
+      throw new Error('Channel not found or is not a text channel');
+    }
+
+    const textChannel = channel as TextChannel;
+    let allMessages: any[] = [];
+    let lastMessageId: string | undefined = params.before;
+    const targetLimit = params.limit || 50;
+    let totalFetched = 0;
+    const maxIterations = 10; // Prevent infinite loops
+    let iterations = 0;
+
+    // Parse dates if provided
+    const startDate = params.startDate ? new Date(params.startDate) : null;
+    const endDate = params.endDate ? new Date(params.endDate) : null;
+
+    while (allMessages.length < targetLimit && iterations < maxIterations) {
+      iterations++;
+      
+      // Fetch messages with pagination
+      const fetchOptions: any = { limit: 100 };
+      if (lastMessageId) fetchOptions.before = lastMessageId;
+      if (params.after) fetchOptions.after = params.after;
+
+      const fetchResult = await textChannel.messages.fetch(fetchOptions);
+      // Check if fetch returned a single message or a collection
+      const messages = fetchResult instanceof Message ? 
+        new Collection<string, Message>([[fetchResult.id, fetchResult]]) : 
+        fetchResult;
+      
+      if (messages.size === 0) break;
+
+      // Convert to array and sort by timestamp (newest first)
+      const messageArray = Array.from(messages.values()) as Message[];
+      messageArray.sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+      for (const msg of messageArray) {
+        // Date range filter
+        if (startDate && msg.createdAt < startDate) {
+          // If we've gone before the start date, stop fetching
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Retrieved ${allMessages.length} messages matching criteria:\n\n${JSON.stringify(allMessages, null, 2)}`,
+              },
+            ],
+          };
+        }
+        if (endDate && msg.createdAt > endDate) {
+          continue; // Skip messages after end date
+        }
+
+        // Keyword filter
+        if (params.keyword && !msg.content.toLowerCase().includes(params.keyword.toLowerCase())) {
+          continue;
+        }
+
+        // Author filter
+        if (params.author) {
+          const authorMatch = msg.author.username === params.author || 
+                            msg.author.id === params.author;
+          if (!authorMatch) continue;
+        }
+
+        // Attachment filter
+        if (params.hasAttachments && msg.attachments.size === 0) {
+          continue;
+        }
+
+        // Add message to results
+        allMessages.push({
+          id: msg.id,
+          author: msg.author.username,
+          authorId: msg.author.id,
+          content: msg.content,
+          timestamp: msg.createdAt.toISOString(),
+          attachments: msg.attachments.map(att => ({
+            name: att.name,
+            url: att.url,
+            size: att.size,
+            contentType: att.contentType,
+          })),
+          embeds: msg.embeds.length,
+          reactions: msg.reactions.cache.size,
+        });
+
+        if (allMessages.length >= targetLimit) break;
+      }
+
+      // Update last message ID for next iteration
+      const lastMessage = messageArray[messageArray.length - 1];
+      if (lastMessage) {
+        lastMessageId = lastMessage.id;
+      }
+      totalFetched += messages.size;
+
+      // If we've fetched fewer messages than requested, we've reached the end
+      if (messages.size < 100) break;
+    }
+
+    // Prepare summary
+    const summary = {
+      total: allMessages.length,
+      filters: {
+        dateRange: startDate || endDate ? 
+          `${startDate ? startDate.toISOString() : 'any'} to ${endDate ? endDate.toISOString() : 'any'}` : 
+          'none',
+        keyword: params.keyword || 'none',
+        author: params.author || 'any',
+        hasAttachments: params.hasAttachments || false,
+      },
+      pagination: {
+        before: params.before || 'none',
+        after: params.after || 'none',
+        totalFetched: totalFetched,
+      },
+    };
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Advanced search results:\n\nSummary: ${JSON.stringify(summary, null, 2)}\n\nMessages:\n${JSON.stringify(allMessages, null, 2)}`,
         },
       ],
     };

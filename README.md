@@ -113,6 +113,20 @@ Discordチャンネルから画像を取得します。
 - `channel_id` (string): Discord チャンネル ID
 - `limit` (number, optional): 検索するメッセージ数 (デフォルト: 50, 最大: 100)
 
+### discord_get_messages_advanced
+高度な検索機能を使用してメッセージを取得します。日時範囲指定、キーワード検索、ページネーションに対応。
+
+パラメータ:
+- `channel_id` (string): Discord チャンネル ID
+- `limit` (number, optional): 取得するメッセージ数 (デフォルト: 50, 最大: 100)
+- `before` (string, optional): 指定したメッセージIDより前のメッセージを取得
+- `after` (string, optional): 指定したメッセージIDより後のメッセージを取得
+- `start_date` (string, optional): 開始日時 (ISO形式, 例: 2024-01-01T00:00:00Z)
+- `end_date` (string, optional): 終了日時 (ISO形式, 例: 2024-12-31T23:59:59Z)
+- `keyword` (string, optional): メッセージ内容で検索するキーワード
+- `author` (string, optional): 特定ユーザー名またはIDでフィルタ
+- `has_attachments` (boolean, optional): 添付ファイル付きメッセージのみ取得
+
 ## 開発 (Development)
 
 ```bash
@@ -171,6 +185,20 @@ Claude Code で以下のようにDiscordツールを使用できます:
 
 ```
 /path/to/image.png をチャンネル ID 123456789 に送信して
+```
+
+**高度な検索の例:**
+
+```
+チャンネル ID 123456789 から2024年1月のメッセージを取得して
+```
+
+```
+チャンネル ID 123456789 から "error" というキーワードを含むメッセージを検索して
+```
+
+```
+チャンネル ID 123456789 から特定ユーザー "username" のメッセージだけを取得して
 ```
 
 ## 注意事項 (Notes)
