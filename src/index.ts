@@ -73,28 +73,6 @@ class DiscordMCPServer {
             },
           },
           {
-            name: 'discord_send_image',
-            description: 'Send an image to a Discord channel',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                channel_id: {
-                  type: 'string',
-                  description: 'Discord channel ID',
-                },
-                image_path: {
-                  type: 'string',
-                  description: 'Local path to the image file',
-                },
-                message: {
-                  type: 'string',
-                  description: 'Optional message to accompany the image',
-                },
-              },
-              required: ['channel_id', 'image_path'],
-            },
-          },
-          {
             name: 'discord_send_file',
             description: 'Send any type of file to a Discord channel (images, videos, audio, documents, etc.)',
             inputSchema: {
@@ -137,26 +115,6 @@ class DiscordMCPServer {
                 limit: {
                   type: 'number',
                   description: 'Number of messages to retrieve (default: 10, max: 100)',
-                  minimum: 1,
-                  maximum: 100,
-                },
-              },
-              required: ['channel_id'],
-            },
-          },
-          {
-            name: 'discord_get_images',
-            description: 'Retrieve images from a Discord channel',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                channel_id: {
-                  type: 'string',
-                  description: 'Discord channel ID',
-                },
-                limit: {
-                  type: 'number',
-                  description: 'Number of messages to search for images (default: 50, max: 100)',
                   minimum: 1,
                   maximum: 100,
                 },
@@ -252,13 +210,6 @@ class DiscordMCPServer {
           case 'discord_send_message':
             return await this.sendMessage(args.channel_id as string, args.message as string);
 
-          case 'discord_send_image':
-            return await this.sendImage(
-              args.channel_id as string,
-              args.image_path as string,
-              args.message as string
-            );
-
           case 'discord_send_file':
             return await this.sendFile(
               args.channel_id as string,
@@ -272,12 +223,6 @@ class DiscordMCPServer {
             return await this.getMessages(
               args.channel_id as string,
               args.limit as number || 10
-            );
-
-          case 'discord_get_images':
-            return await this.getImages(
-              args.channel_id as string,
-              args.limit as number || 50
             );
 
           case 'discord_get_attachments':
@@ -334,34 +279,6 @@ class DiscordMCPServer {
         },
       ],
     };
-  }
-
-  private async sendImage(channelId: string, imagePath: string, message?: string) {
-    await this.ensureDiscordReady();
-
-    const channel = await this.discordClient.channels.fetch(channelId);
-    if (!channel || !channel.isTextBased()) {
-      throw new Error('Channel not found or is not a text channel');
-    }
-
-    try {
-      const attachment = new AttachmentBuilder(imagePath);
-      const sentMessage = await (channel as TextChannel).send({
-        content: message || '',
-        files: [attachment],
-      });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Image sent successfully to channel ${channelId}. Message ID: ${sentMessage.id}`,
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to send image: ${error}`);
-    }
   }
 
   private async sendFile(channelId: string, filePath: string, message?: string, customFilename?: string, spoiler?: boolean) {
@@ -447,43 +364,6 @@ class DiscordMCPServer {
         {
           type: 'text',
           text: `Retrieved ${messageData.length} messages from channel ${channelId}:\n\n${JSON.stringify(messageData, null, 2)}`,
-        },
-      ],
-    };
-  }
-
-  private async getImages(channelId: string, limit: number) {
-    await this.ensureDiscordReady();
-
-    const channel = await this.discordClient.channels.fetch(channelId);
-    if (!channel || !channel.isTextBased()) {
-      throw new Error('Channel not found or is not a text channel');
-    }
-
-    const messages = await (channel as TextChannel).messages.fetch({ limit });
-    const imageData: any[] = [];
-
-    messages.forEach(msg => {
-      msg.attachments.forEach(attachment => {
-        if (attachment.contentType?.startsWith('image/')) {
-          imageData.push({
-            messageId: msg.id,
-            author: msg.author.username,
-            timestamp: msg.createdAt.toISOString(),
-            filename: attachment.name,
-            url: attachment.url,
-            size: attachment.size,
-            contentType: attachment.contentType,
-          });
-        }
-      });
-    });
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Retrieved ${imageData.length} images from channel ${channelId}:\n\n${JSON.stringify(imageData, null, 2)}`,
         },
       ],
     };
