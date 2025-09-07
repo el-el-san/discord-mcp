@@ -1,13 +1,14 @@
 # Discord MCP Server
 
-Discord Model Context Protocol (MCP) server that provides tools for interacting with Discord channels. This server allows you to send messages, send images, retrieve messages, and retrieve images from Discord channels.
+Discord Model Context Protocol (MCP) server that provides tools for interacting with Discord channels. This server allows you to send messages, send any type of files (images, videos, audio, documents), retrieve messages, and retrieve media attachments from Discord channels.
 
 ## 機能 (Features)
 
 - **メッセージ送信**: Discordチャンネルにテキストメッセージを送信
-- **画像送信**: Discordチャンネルに画像ファイルを送信  
+- **ファイル送信**: Discordチャンネルにあらゆる種類のファイルを送信（画像、動画、音声、文書等）
 - **メッセージ取得**: Discordチャンネルからメッセージを取得
-- **画像取得**: Discordチャンネルから画像を取得
+- **添付ファイル取得**: Discordチャンネルからあらゆる種類の添付ファイルを取得
+- **高度な検索**: 日時範囲、キーワード、作者等でフィルタリング
 
 ## インストール (Installation)
 
@@ -31,7 +32,7 @@ Claude Codeの設定ファイルに以下を追加:
   "mcpServers": {
     "discord": {
       "command": "npx",
-      "args": ["--yes", "@el-el-san/discord-mcp@latest"],
+      "args": ["--yes", "--prefer-online", "@el-el-san/discord-mcp@latest"],
       "env": {
         "DISCORD_BOT_TOKEN": "${DISCORD_BOT_TOKEN}"
       }
@@ -91,13 +92,15 @@ Discordチャンネルにテキストメッセージを送信します。
 - `channel_id` (string): Discord チャンネル ID
 - `message` (string): 送信するメッセージ内容
 
-### discord_send_image
-Discordチャンネルに画像を送信します。
+### discord_send_file
+Discordチャンネルにあらゆる種類のファイルを送信します（画像、動画、音声、文書等）。
 
 パラメータ:
 - `channel_id` (string): Discord チャンネル ID  
-- `image_path` (string): 送信する画像ファイルのローカルパス
-- `message` (string, optional): 画像に添付するメッセージ
+- `file_path` (string): 送信するファイルのローカルパス
+- `message` (string, optional): ファイルに添付するメッセージ
+- `filename` (string, optional): カスタムファイル名（指定しない場合は元のファイル名を使用）
+- `spoiler` (boolean, optional): スポイラー表示にする場合はtrue
 
 ### discord_get_messages
 Discordチャンネルからメッセージを取得します。
@@ -106,12 +109,13 @@ Discordチャンネルからメッセージを取得します。
 - `channel_id` (string): Discord チャンネル ID
 - `limit` (number, optional): 取得するメッセージ数 (デフォルト: 10, 最大: 100)
 
-### discord_get_images
-Discordチャンネルから画像を取得します。
+### discord_get_attachments
+Discordチャンネルからあらゆる種類の添付ファイルを取得します（画像、動画、音声、文書等）。
 
 パラメータ:
 - `channel_id` (string): Discord チャンネル ID
 - `limit` (number, optional): 検索するメッセージ数 (デフォルト: 50, 最大: 100)
+- `content_type_filter` (string, optional): コンテンツタイプでフィルタ（例: "image/", "video/", "audio/", "application/"）
 
 ### discord_get_messages_advanced
 高度な検索機能を使用してメッセージを取得します。日時範囲指定、キーワード検索、ページネーションに対応。
@@ -185,6 +189,14 @@ Claude Code で以下のようにDiscordツールを使用できます:
 
 ```
 /path/to/image.png をチャンネル ID 123456789 に送信して
+```
+
+```
+/path/to/video.mp4 をチャンネル ID 123456789 に "動画ファイル" というメッセージと一緒に送信して
+```
+
+```
+チャンネル ID 123456789 から動画ファイルを全て取得して
 ```
 
 **高度な検索の例:**
