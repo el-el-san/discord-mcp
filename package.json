@@ -1,7 +1,7 @@
 {
   "name": "@el-el-san/discord-mcp",
-  "version": "1.1.0",
-  "description": "MCP server for Discord integration with message and image capabilities",
+  "version": "1.2.0",
+  "description": "MCP server for Discord integration with messaging and media file capabilities (images, videos, audio, documents)",
   "main": "build/index.js",
   "bin": {
     "discord-mcp": "build/index.js"
@@ -36,7 +36,7 @@
   "author": "el-el-san",
   "repository": {
     "type": "git",
-    "url": "https://github.com/el-el-san/discord-mcp.git"
+    "url": "git+https://github.com/el-el-san/discord-mcp.git"
   },
   "homepage": "https://github.com/el-el-san/discord-mcp",
   "bugs": {

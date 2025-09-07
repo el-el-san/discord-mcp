@@ -95,6 +95,36 @@ class DiscordMCPServer {
             },
           },
           {
+            name: 'discord_send_file',
+            description: 'Send any type of file to a Discord channel (images, videos, audio, documents, etc.)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                channel_id: {
+                  type: 'string',
+                  description: 'Discord channel ID',
+                },
+                file_path: {
+                  type: 'string',
+                  description: 'Local path to the file',
+                },
+                message: {
+                  type: 'string',
+                  description: 'Optional message to accompany the file',
+                },
+                filename: {
+                  type: 'string',
+                  description: 'Optional custom filename for the attachment (if not provided, uses the original filename)',
+                },
+                spoiler: {
+                  type: 'boolean',
+                  description: 'Mark the file as spoiler (default: false)',
+                },
+              },
+              required: ['channel_id', 'file_path'],
+            },
+          },
+          {
             name: 'discord_get_messages',
             description: 'Retrieve messages from a Discord channel',
             inputSchema: {
@@ -129,6 +159,30 @@ class DiscordMCPServer {
                   description: 'Number of messages to search for images (default: 50, max: 100)',
                   minimum: 1,
                   maximum: 100,
+                },
+              },
+              required: ['channel_id'],
+            },
+          },
+          {
+            name: 'discord_get_attachments',
+            description: 'Retrieve all types of media attachments from a Discord channel (images, videos, audio, documents, etc.)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                channel_id: {
+                  type: 'string',
+                  description: 'Discord channel ID',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Number of messages to search for attachments (default: 50, max: 100)',
+                  minimum: 1,
+                  maximum: 100,
+                },
+                content_type_filter: {
+                  type: 'string',
+                  description: 'Filter by content type prefix (e.g., "image/", "video/", "audio/", "application/"). Leave empty for all types',
                 },
               },
               required: ['channel_id'],
@@ -205,6 +259,15 @@ class DiscordMCPServer {
               args.message as string
             );
 
+          case 'discord_send_file':
+            return await this.sendFile(
+              args.channel_id as string,
+              args.file_path as string,
+              args.message as string,
+              args.filename as string,
+              args.spoiler as boolean
+            );
+
           case 'discord_get_messages':
             return await this.getMessages(
               args.channel_id as string,
@@ -215,6 +278,13 @@ class DiscordMCPServer {
             return await this.getImages(
               args.channel_id as string,
               args.limit as number || 50
+            );
+
+          case 'discord_get_attachments':
+            return await this.getAttachments(
+              args.channel_id as string,
+              args.limit as number || 50,
+              args.content_type_filter as string
             );
 
           case 'discord_get_messages_advanced':
@@ -294,6 +364,63 @@ class DiscordMCPServer {
     }
   }
 
+  private async sendFile(channelId: string, filePath: string, message?: string, customFilename?: string, spoiler?: boolean) {
+    await this.ensureDiscordReady();
+
+    const channel = await this.discordClient.channels.fetch(channelId);
+    if (!channel || !channel.isTextBased()) {
+      throw new Error('Channel not found or is not a text channel');
+    }
+
+    try {
+      const attachmentOptions: any = { attachment: filePath };
+      
+      if (customFilename) {
+        attachmentOptions.name = customFilename;
+      }
+      
+      if (spoiler) {
+        attachmentOptions.spoiler = true;
+      }
+      
+      const attachment = new AttachmentBuilder(attachmentOptions.attachment, attachmentOptions);
+      const sentMessage = await (channel as TextChannel).send({
+        content: message || '',
+        files: [attachment],
+      });
+
+      const fileType = this.getFileType(filePath);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${fileType} file sent successfully to channel ${channelId}. Message ID: ${sentMessage.id}`,
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(`Failed to send file: ${error}`);
+    }
+  }
+
+  private getFileType(filePath: string): string {
+    const extension = filePath.toLowerCase().split('.').pop();
+    
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+    const videoExtensions = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'];
+    const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'];
+    const documentExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
+    const archiveExtensions = ['zip', 'rar', '7z', 'tar', 'gz'];
+    
+    if (imageExtensions.includes(extension || '')) return 'Image';
+    if (videoExtensions.includes(extension || '')) return 'Video';
+    if (audioExtensions.includes(extension || '')) return 'Audio';
+    if (documentExtensions.includes(extension || '')) return 'Document';
+    if (archiveExtensions.includes(extension || '')) return 'Archive';
+    
+    return 'File';
+  }
+
   private async getMessages(channelId: string, limit: number) {
     await this.ensureDiscordReady();
 
@@ -357,6 +484,51 @@ class DiscordMCPServer {
         {
           type: 'text',
           text: `Retrieved ${imageData.length} images from channel ${channelId}:\n\n${JSON.stringify(imageData, null, 2)}`,
+        },
+      ],
+    };
+  }
+
+  private async getAttachments(channelId: string, limit: number, contentTypeFilter?: string) {
+    await this.ensureDiscordReady();
+
+    const channel = await this.discordClient.channels.fetch(channelId);
+    if (!channel || !channel.isTextBased()) {
+      throw new Error('Channel not found or is not a text channel');
+    }
+
+    const messages = await (channel as TextChannel).messages.fetch({ limit });
+    const attachmentData: any[] = [];
+
+    messages.forEach(msg => {
+      msg.attachments.forEach(attachment => {
+        const shouldInclude = !contentTypeFilter || 
+          (attachment.contentType?.startsWith(contentTypeFilter)) ||
+          (!attachment.contentType && contentTypeFilter === 'unknown');
+        
+        if (shouldInclude) {
+          attachmentData.push({
+            messageId: msg.id,
+            author: msg.author.username,
+            timestamp: msg.createdAt.toISOString(),
+            filename: attachment.name,
+            url: attachment.url,
+            size: attachment.size,
+            contentType: attachment.contentType || 'unknown',
+            description: attachment.description,
+            width: attachment.width,
+            height: attachment.height,
+          });
+        }
+      });
+    });
+
+    const filterText = contentTypeFilter ? ` (filtered by: ${contentTypeFilter})` : '';
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Retrieved ${attachmentData.length} attachments from channel ${channelId}${filterText}:\n\n${JSON.stringify(attachmentData, null, 2)}`,
         },
       ],
     };
